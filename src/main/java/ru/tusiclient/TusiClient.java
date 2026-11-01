@@ -37,6 +37,7 @@ public class TusiClient {
     public static KeyBinding openGuiKey;
     public static List<Module> modules = new ArrayList<>();
     public static Minecraft mc = Minecraft.getMinecraft();
+    private static long lastAttack = 0; // Таймер для Attack Aura
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
@@ -81,7 +82,7 @@ public class TusiClient {
         // Velocity
         if (isEnabled("Velocity") && mc.thePlayer.hurtTime > 0) { mc.thePlayer.motionX *= 0.1; mc.thePlayer.motionZ *= 0.1; }
         
-        // Attack Aura (Упрощенная версия)
+        // Attack Aura (Исправлено для 1.7.10)
         if (isEnabled("Attack Aura")) {
             EntityLivingBase target = null;
             double dist = 4.5;
@@ -97,9 +98,12 @@ public class TusiClient {
             if (target != null) {
                 mc.thePlayer.rotationYaw = (float)(Math.atan2(target.posZ - mc.thePlayer.posZ, target.posX - mc.thePlayer.posX) * 180.0D / Math.PI) - 90.0F;
                 mc.thePlayer.rotationPitch = (float)-(Math.atan2(target.posY + target.getEyeHeight() / 2 - (mc.thePlayer.posY + mc.thePlayer.getEyeHeight()), mc.thePlayer.getDistanceToEntity(target)) * 180.0D / Math.PI);
-                if (mc.thePlayer.getCooledAttackStrength(0) >= 0.9F) {
+                
+                // В 1.7.10 нет кулдауна, поэтому просто бьем раз в 150 миллисекунд, чтобы не спамить
+                if (System.currentTimeMillis() - lastAttack > 150) {
                     mc.playerController.attackEntity(mc.thePlayer, target);
                     mc.thePlayer.swingItem();
+                    lastAttack = System.currentTimeMillis();
                 }
             }
         }
@@ -204,9 +208,6 @@ public class TusiClient {
         }
     }
 
-    // ==========================================
-    // НОВЫЙ КРАСИВЫЙ ИНТЕРФЕЙС (GUI)
-    // ==========================================
     public static class GuiTusiClient extends GuiScreen {
         private int x, y;
         private final int width = 520; 
@@ -228,26 +229,20 @@ public class TusiClient {
 
         @Override
         public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-            // Затемнение на весь экран
             drawRect(0, 0, this.width, this.height, 0xB4000000);
             
-            // Основное окно и сайдбар
             drawRect(x, y, x + width, y + height, BG); 
             drawRect(x, y, x + SIDEBAR, y + height, SIDE);
             
-            // Логотип (красный квадрат)
             drawRect(x + 15, y + 15, x + 45, y + 45, 0xFFB42828);
             fontRendererObj.drawStringWithShadow("TusiClient", x + 55, y + 25, TEXT);
             
-            // Категории
             drawCat("Combat", x + 15, y + 70, mouseX, mouseY); 
             drawCat("Render", x + 15, y + 100, mouseX, mouseY);
             
-            // Поиск
             drawRect(x + SIDEBAR + 20, y + 20, x + width - 20, y + 40, SIDE);
             fontRendererObj.drawStringWithShadow("Поиск...", x + SIDEBAR + 30, y + 26, DESC);
 
-            // Сетка модулей
             List<Module> list = getModules(category);
             int startX = x + SIDEBAR + 20, startY = y + 60, col = 0, row = 0;
             
@@ -264,7 +259,6 @@ public class TusiClient {
                 fontRendererObj.drawString(mod.desc, (int)((mx + 8) / 0.7f), (int)((my + 18) / 0.7f), mod.enabled ? 0xFFE4E4E7 : DESC); 
                 GL11.glPopMatrix();
                 
-                // Кружочки настроек справа
                 drawRect(mx + 160, my + 8, mx + 168, my + 16, 0x44FFFFFF);
                 
                 col++; 
@@ -315,4 +309,4 @@ public class TusiClient {
         @Override
         public boolean doesGuiPauseGame() { return false; }
     }
-    }
+                             }
