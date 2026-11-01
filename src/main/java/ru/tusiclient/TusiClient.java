@@ -43,11 +43,18 @@ public class TusiClient {
         openGuiKey = new KeyBinding("Меню TusiClient", Keyboard.KEY_RSHIFT, "TusiClient");
         cpw.mods.fml.client.registry.ClientRegistry.registerKeyBinding(openGuiKey);
         
-        modules.add(new Module("Fullbright", "Яркость", "Render", true));
+        // Заполняем модули
+        modules.add(new Module("Fullbright", "Максимальная яркость", "Render", true));
         modules.add(new Module("ESP", "Подсветка игроков", "Render", false));
         modules.add(new Module("Tracers", "Линии до игроков", "Render", false));
+        modules.add(new Module("NoHurtCam", "Убирает тряску камеры", "Render", true));
+        modules.add(new Module("Storage ESP", "Подсветка сундуков", "Render", false));
+        modules.add(new Module("Item ESP", "Подсветка предметов", "Render", false));
+        modules.add(new Module("Nametags", "Красивые ники", "Render", false));
+        modules.add(new Module("Block ESP", "Подсветка руд", "Render", false));
+        
         modules.add(new Module("Velocity", "Убирает откидывание", "Combat", false));
-        modules.add(new Module("NoHurtCam", "Убирает тряску", "Render", true));
+        modules.add(new Module("Attack Aura", "Автоматически бьет", "Combat", false));
 
         FMLCommonHandler.instance().bus().register(this);
         MinecraftForge.EVENT_BUS.register(this);
@@ -64,11 +71,38 @@ public class TusiClient {
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player != mc.thePlayer) return;
         
+        // Fullbright
         if (isEnabled("Fullbright")) mc.gameSettings.gammaSetting = 100.0F;
         else if (mc.gameSettings.gammaSetting == 100.0F) mc.gameSettings.gammaSetting = 1.0F;
         
+        // NoHurtCam
         if (isEnabled("NoHurtCam")) { mc.thePlayer.hurtTime = 0; mc.thePlayer.maxHurtTime = 0; }
+        
+        // Velocity
         if (isEnabled("Velocity") && mc.thePlayer.hurtTime > 0) { mc.thePlayer.motionX *= 0.1; mc.thePlayer.motionZ *= 0.1; }
+        
+        // Attack Aura (Упрощенная версия)
+        if (isEnabled("Attack Aura")) {
+            EntityLivingBase target = null;
+            double dist = 4.5;
+            for (Object obj : mc.theWorld.loadedEntityList) {
+                if (obj instanceof EntityLivingBase) {
+                    EntityLivingBase e = (EntityLivingBase) obj;
+                    if (e == mc.thePlayer || e.isDead || e.getHealth() <= 0) continue;
+                    if (e instanceof EntityPlayer && ((EntityPlayer) e).capabilities.isCreativeMode) continue;
+                    double d = mc.thePlayer.getDistanceToEntity(e);
+                    if (d < dist) { dist = d; target = e; }
+                }
+            }
+            if (target != null) {
+                mc.thePlayer.rotationYaw = (float)(Math.atan2(target.posZ - mc.thePlayer.posZ, target.posX - mc.thePlayer.posX) * 180.0D / Math.PI) - 90.0F;
+                mc.thePlayer.rotationPitch = (float)-(Math.atan2(target.posY + target.getEyeHeight() / 2 - (mc.thePlayer.posY + mc.thePlayer.getEyeHeight()), mc.thePlayer.getDistanceToEntity(target)) * 180.0D / Math.PI);
+                if (mc.thePlayer.getCooledAttackStrength(0) >= 0.9F) {
+                    mc.playerController.attackEntity(mc.thePlayer, target);
+                    mc.thePlayer.swingItem();
+                }
+            }
+        }
     }
 
     @SubscribeEvent
@@ -79,15 +113,14 @@ public class TusiClient {
     }
 
     @SubscribeEvent
-    public void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
-        // Заглушка для будущих функций
-    }
+    public void onRenderPlayerPre(RenderPlayerEvent.Pre event) {}
 
     @SubscribeEvent
     public void onRenderWorld(RenderWorldLastEvent event) {
         if (mc.theWorld == null || mc.thePlayer == null) return;
-        boolean esp = isEnabled("ESP"), tracers = isEnabled("Tracers");
-        if (!esp && !tracers) return;
+        
+        boolean esp = isEnabled("ESP"), tracers = isEnabled("Tracers"), storage = isEnabled("Storage ESP"), items = isEnabled("Item ESP");
+        if (!esp && !tracers && !storage && !items) return;
         
         GL11.glPushMatrix(); 
         GL11.glDisable(GL11.GL_TEXTURE_2D); 
@@ -119,6 +152,27 @@ public class TusiClient {
                 drawBox(x, y, z, player.width / 2, player.height); 
             }
         }
+        
+        if (storage) {
+            GL11.glColor4f(1F, 1F, 0F, 1F);
+            for (Object obj : mc.theWorld.loadedTileEntityList) {
+                if (obj instanceof TileEntityChest) { 
+                    TileEntityChest c = (TileEntityChest) obj; 
+                    drawBox(c.xCoord + 0.5 - rX, c.yCoord + 0.5 - rY, c.zCoord + 0.5 - rZ, 0.5, 1.0); 
+                }
+            }
+        }
+        
+        if (items) {
+            GL11.glColor4f(1F, 0.5F, 0F, 1F);
+            for (Object obj : mc.theWorld.loadedEntityList) {
+                if (obj instanceof EntityItem) { 
+                    EntityItem i = (EntityItem) obj; 
+                    drawBox(i.lastTickPosX + (i.posX - i.lastTickPosX) * pTicks - rX, i.lastTickPosY + (i.posY - i.lastTickPosY) * pTicks - rY, i.lastTickPosZ + (i.posZ - i.lastTickPosZ) * pTicks - rZ, 0.2, 0.4); 
+                }
+            }
+        }
+        
         GL11.glEnable(GL11.GL_DEPTH_TEST); 
         GL11.glEnable(GL11.GL_TEXTURE_2D); 
         GL11.glDisable(GL11.GL_BLEND); 
@@ -150,51 +204,83 @@ public class TusiClient {
         }
     }
 
+    // ==========================================
+    // НОВЫЙ КРАСИВЫЙ ИНТЕРФЕЙС (GUI)
+    // ==========================================
     public static class GuiTusiClient extends GuiScreen {
-        private int x, y, width = 520, height = 360;
+        private int x, y;
+        private final int width = 520; 
+        private final int height = 340;
         private final int SIDEBAR = 130;
         private String category = "Render"; 
-        private final int BG = 0xFF121214, SIDE = 0xFF18181B, MOD = 0xFF27272A, TEXT = 0xFFFAFAFA, DESC = 0xFFA1A1AA;
+        
+        private final int BG = 0xFF121214;
+        private final int SIDE = 0xFF18181B;
+        private final int MOD = 0xFF27272A;
+        private final int TEXT = 0xFFFFFFFF;
+        private final int DESC = 0xFFA1A1AA;
 
         @Override
-        public void initGui() { this.x = (this.width / 2) - (this.width / 2); this.y = (this.height / 2) - (this.height / 2); }
+        public void initGui() { 
+            this.x = (this.width / 2) - (width / 2); 
+            this.y = (this.height / 2) - (height / 2); 
+        }
 
         @Override
         public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+            // Затемнение на весь экран
             drawRect(0, 0, this.width, this.height, 0xB4000000);
+            
+            // Основное окно и сайдбар
             drawRect(x, y, x + width, y + height, BG); 
             drawRect(x, y, x + SIDEBAR, y + height, SIDE);
             
+            // Логотип (красный квадрат)
             drawRect(x + 15, y + 15, x + 45, y + 45, 0xFFB42828);
             fontRendererObj.drawStringWithShadow("TusiClient", x + 55, y + 25, TEXT);
             
+            // Категории
             drawCat("Combat", x + 15, y + 70, mouseX, mouseY); 
             drawCat("Render", x + 15, y + 100, mouseX, mouseY);
             
+            // Поиск
+            drawRect(x + SIDEBAR + 20, y + 20, x + width - 20, y + 40, SIDE);
+            fontRendererObj.drawStringWithShadow("Поиск...", x + SIDEBAR + 30, y + 26, DESC);
+
+            // Сетка модулей
             List<Module> list = getModules(category);
             int startX = x + SIDEBAR + 20, startY = y + 60, col = 0, row = 0;
+            
             for (Module mod : list) {
-                int mx = startX + (col * 190), my = startY + (row * 45);
-                if (mod.enabled) drawGradient(mx, my, 180, 38, 0xFF3B82F6, 0xFF8B5CF6);
-                else drawRect(mx, my, mx + 180, my + 38, MOD);
+                int mx = startX + (col * 190), my = startY + (row * 42);
                 
-                fontRendererObj.drawStringWithShadow(mod.name, mx + 8, my + 6, TEXT);
+                if (mod.enabled) drawGradient(mx, my, 180, 36, 0xFF3B82F6, 0xFF8B5CF6);
+                else drawRect(mx, my, mx + 180, my + 36, MOD);
+                
+                fontRendererObj.drawStringWithShadow(mod.name, mx + 8, my + 5, TEXT);
                 
                 GL11.glPushMatrix(); 
-                GL11.glScalef(0.75f, 0.75f, 1f); 
-                fontRendererObj.drawString(mod.desc, (int)((mx + 8) / 0.75f), (int)((my + 20) / 0.75f), DESC); 
+                GL11.glScalef(0.7f, 0.7f, 1f); 
+                fontRendererObj.drawString(mod.desc, (int)((mx + 8) / 0.7f), (int)((my + 18) / 0.7f), mod.enabled ? 0xFFE4E4E7 : DESC); 
                 GL11.glPopMatrix();
                 
-                col++; if (col >= 2) { col = 0; row++; }
+                // Кружочки настроек справа
+                drawRect(mx + 160, my + 8, mx + 168, my + 16, 0x44FFFFFF);
+                
+                col++; 
+                if (col >= 2) { col = 0; row++; }
             }
             super.drawScreen(mouseX, mouseY, partialTicks);
         }
 
         private void drawCat(String name, int cx, int cy, int mx, int my) {
             boolean active = category.equals(name);
-            if (active) drawGradient(cx, cy, SIDEBAR - 20, 22, 0xFF3B82F6, 0xFF8B5CF6);
-            else if (mx >= cx && mx <= cx + SIDEBAR - 20 && my >= cy && my <= cy + 20) drawRect(cx, cy, cx + SIDEBAR - 20, cy + 22, MOD);
-            fontRendererObj.drawString(name, cx + 10, cy + 7, active ? -1 : TEXT);
+            boolean hover = mx >= cx && mx <= cx + SIDEBAR - 20 && my >= cy && my <= cy + 20;
+            
+            if (active) drawGradient(cx, cy, SIDEBAR - 20, 22, 0xFF3B82F6, 0xFF8B5CF6); 
+            else if (hover) drawRect(cx, cy, cx + SIDEBAR - 20, cy + 22, MOD); 
+            
+            fontRendererObj.drawString(name, cx + 10, cy + 7, active ? TEXT : DESC);
         }
 
         @Override
@@ -204,10 +290,14 @@ public class TusiClient {
             
             List<Module> list = getModules(category);
             int startX = x + SIDEBAR + 20, startY = y + 60, col = 0, row = 0;
+            
             for (Module mod : list) {
-                int mx = startX + (col * 190), my = startY + (row * 45);
-                if (mouseX >= mx && mouseX <= mx + 180 && mouseY >= my && mouseY <= my + 38) { mod.enabled = !mod.enabled; }
-                col++; if (col >= 2) { col = 0; row++; }
+                int mx = startX + (col * 190), my = startY + (row * 42);
+                if (mouseX >= mx && mouseX <= mx + 180 && mouseY >= my && mouseY <= my + 36) { 
+                    mod.enabled = !mod.enabled; 
+                }
+                col++; 
+                if (col >= 2) { col = 0; row++; }
             }
             super.mouseClicked(mouseX, mouseY, mouseButton);
         }
