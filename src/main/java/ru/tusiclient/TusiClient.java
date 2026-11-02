@@ -344,4 +344,33 @@ public class TusiClient {
             if (mouseY >= y + 100 && mouseY <= y + 122) { category = "Movement"; }
             if (mouseY >= y + 130 && mouseY <= y + 152) { category = "Render"; }
             if (mouseY >= y + 160 && mouseY <= y + 182) { category = "Player"; }
-            if
+            if (mouseY >= y + 190 && mouseY <= y + 212) { category = "Util"; }
+            
+            List<Module> list = getModules(category);
+            int startX = x + SIDEBAR + 20, startY = y + 60, col = 0, row = 0;
+            
+            for (Module mod : list) {
+                int mx = startX + (col * 190), my = startY + (row * 42);
+                if (mouseX >= mx && mouseX <= mx + 180 && mouseY >= my && mouseY <= my + 36) { 
+                    mod.enabled = !mod.enabled; 
+                }
+                col++; 
+                if (col >= 2) { col = 0; row++; }
+            }
+            super.mouseClicked(mouseX, mouseY, mouseButton);
+        }
+
+        private void drawGradient(int x, int y, int w, int h, int c1, int c2) {
+            float a1 = (float)(c1 >> 24 & 255) / 255.0F, r1 = (float)(c1 >> 16 & 255) / 255.0F, g1 = (float)(c1 >> 8 & 255) / 255.0F, b1 = (float)(c1 & 255) / 255.0F;
+            float a2 = (float)(c2 >> 24 & 255) / 255.0F, r2 = (float)(c2 >> 16 & 255) / 255.0F, g2 = (float)(c2 >> 8 & 255) / 255.0F, b2 = (float)(c2 & 255) / 255.0F;
+            GL11.glEnable(GL11.GL_BLEND); GL11.glDisable(GL11.GL_TEXTURE_2D); GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glBegin(GL11.GL_QUADS);
+            GL11.glColor4f(r1, g1, b1, a1); GL11.glVertex2f(x + w, y); GL11.glVertex2f(x, y);
+            GL11.glColor4f(r2, g2, b2, a2); GL11.glVertex2f(x, y + h); GL11.glVertex2f(x + w, y + h);
+            GL11.glEnd(); GL11.glEnable(GL11.GL_TEXTURE_2D); GL11.glDisable(GL11.GL_BLEND);
+        }
+        
+        @Override
+        public boolean doesGuiPauseGame() { return false; }
+    }
+            }
