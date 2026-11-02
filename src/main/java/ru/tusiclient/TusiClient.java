@@ -9,7 +9,6 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.EntityLivingBase;
@@ -18,7 +17,6 @@ import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
@@ -38,9 +36,10 @@ public class TusiClient {
     public static List<String> friends = new ArrayList<>();
     public static Minecraft mc = Minecraft.getMinecraft();
     
-    public static int THEME_COLOR_1 = new Color(138, 43, 226, 255).getRGB();
-    public static int THEME_COLOR_2 = new Color(75, 0, 130, 255).getRGB();
-    public static int THEME_BG = new Color(15, 15, 20, 230).getRGB();
+    // Цвета темы (настраиваются в GUI)
+    public static int THEME_MAIN = new Color(138, 43, 226, 255).getRGB(); // Фиолетовый
+    public static int THEME_DARK = new Color(75, 0, 130, 255).getRGB();   // Темно-фиолетовый
+    public static int THEME_BG = new Color(12, 12, 16, 255).getRGB();     // Плотный черный фон
     
     public static EntityLivingBase currentTarget = null;
     private static long lastAttack = 0;
@@ -51,6 +50,7 @@ public class TusiClient {
         cpw.mods.fml.client.registry.ClientRegistry.registerKeyBinding(openGuiKey);
         friends.add("Tusi");
         
+        // Модули
         modules.add(new Module("Auto Explosion", "Ставит ТНТ", "Combat"));
         modules.add(new Module("Friend Protect", "Защита друзей", "Combat"));
         modules.add(new Module("Auto GApple", "Ест яблоко", "Combat"));
@@ -60,7 +60,7 @@ public class TusiClient {
         modules.add(new Module("Target ESP", "Квадрат на цели", "Combat"));
         
         modules.add(new Module("Fullbright", "Яркость", "Render"));
-        modules.add(new Module("ESP", "Подсветка игроков", "Render"));
+        modules.add(new Module("ESP", "Подсветка", "Render"));
         modules.add(new Module("Tracers", "Линии", "Render"));
         modules.add(new Module("NoHurtCam", "Без тряски", "Render"));
         modules.add(new Module("Chams", "Сквозь стены", "Render"));
@@ -108,21 +108,11 @@ public class TusiClient {
     }
 
     @SubscribeEvent
-    public void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
-        if (isEnabled("Chams") && event.entityPlayer != mc.thePlayer) GL11.glDisable(GL11.GL_DEPTH_TEST);
-    }
-
-    @SubscribeEvent
-    public void onRenderPlayerPost(RenderPlayerEvent.Post event) {
-        if (isEnabled("Chams") && event.entityPlayer != mc.thePlayer) GL11.glEnable(GL11.GL_DEPTH_TEST);
-    }
-
-    @SubscribeEvent
     public void onRenderOverlay(RenderGameOverlayEvent.Post event) {
         if (event.type == RenderGameOverlayEvent.ElementType.TEXT) {
-            Gui.drawRect(5, 5, 85, 22, THEME_BG);
-            Gui.drawRect(5, 5, 8, 22, THEME_COLOR_1);
-            mc.fontRenderer.drawStringWithShadow("TusiClient", 12, 10, -1);
+            Gui.drawRect(8, 8, 78, 22, THEME_BG);
+            Gui.drawRect(8, 8, 10, 22, THEME_MAIN);
+            mc.fontRenderer.drawStringWithShadow("Tusi", 14, 11, -1);
         }
     }
 
@@ -140,9 +130,9 @@ public class TusiClient {
         double y = currentTarget.lastTickPosY + (currentTarget.posY - currentTarget.lastTickPosY) * pTicks - rY;
         double z = currentTarget.lastTickPosZ + (currentTarget.posZ - currentTarget.lastTickPosZ) * pTicks - rZ;
         
-        float r = (float)(THEME_COLOR_1 >> 16 & 255) / 255.0F;
-        float g = (float)(THEME_COLOR_1 >> 8 & 255) / 255.0F;
-        float b = (float)(THEME_COLOR_1 & 255) / 255.0F;
+        float r = (float)(THEME_MAIN >> 16 & 255) / 255.0F;
+        float g = (float)(THEME_MAIN >> 8 & 255) / 255.0F;
+        float b = (float)(THEME_MAIN & 255) / 255.0F;
         GL11.glColor4f(r, g, b, 1.0F); 
         
         GL11.glBegin(GL11.GL_LINE_LOOP); GL11.glVertex3d(x - 0.5, y, z - 0.5); GL11.glVertex3d(x + 0.5, y, z - 0.5); GL11.glVertex3d(x + 0.5, y, z + 0.5); GL11.glVertex3d(x - 0.5, y, z + 0.5); GL11.glEnd();
@@ -176,85 +166,72 @@ public class TusiClient {
     }
 
     public static class GuiTusiClient extends GuiScreen {
-        private int x, y, width = 420, height = 280, SIDEBAR = 110;
+        private int x, y, width = 340, height = 220, SIDEBAR = 100;
         private String category = "Combat";
-        private GuiTextField searchField;
         private int scrollOffset = 0;
-        private final int SIDE_BG = 0xFF141418, MOD_BG = 0xFF1E1E24, MOD_HOVER = 0xFF2A2A32;
+        private final int SIDE_BG = 0xFF16161C, MOD_BG = 0xFF22222A, MOD_HOVER = 0xFF2F2F3A;
 
         @Override
         public void initGui() { 
             this.x = (this.width / 2) - (width / 2); 
             this.y = (this.height / 2) - (height / 2); 
-            searchField = new GuiTextField(fontRendererObj, x + SIDEBAR + 15, y + 15, 150, 15);
-            searchField.setEnableBackgroundDrawing(false);
-            searchField.setTextColor(0xFFFFFFFF);
         }
 
         @Override
         public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-            drawRect(0, 0, this.width, this.height, 0xB4000000); 
+            drawRect(0, 0, this.width, this.height, 0x88000000); 
             
-            drawRoundedRect(x - 2, y - 2, width + 4, height + 4, 0x40000000); 
+            // Тень и основа
+            drawRoundedRect(x - 2, y - 2, width + 4, height + 4, 0x40000000);
             drawRoundedRect(x, y, width, height, THEME_BG);
-            
             drawRoundedRect(x, y, SIDEBAR, height, SIDE_BG);
-            drawRect(x + SIDEBAR - 2, y, x + SIDEBAR, y + height, THEME_BG); 
             
-            drawRoundedRect(x + 10, y + 10, 20, 20, THEME_COLOR_1);
-            fontRendererObj.drawStringWithShadow("TusiClient", x + 35, y + 16, 0xFFFFFFFF);
+            // Логотип
+            drawRoundedRect(x + 8, y + 8, 20, 20, THEME_MAIN);
+            fontRendererObj.drawStringWithShadow("Tusi", x + 32, y + 13, 0xFFFFFFFF);
             
-            drawCat("Combat", x + 10, y + 45, mouseX, mouseY);
-            drawCat("Render", x + 10, y + 70, mouseX, mouseY);
+            // Категории
+            drawCat("Combat", x + 8, y + 40, mouseX, mouseY);
+            drawCat("Render", x + 8, y + 65, mouseX, mouseY);
 
-            drawRoundedRect(x + SIDEBAR + 10, y + 10, 200, 20, 0xFF101013);
-            searchField.drawTextBox();
-            if (searchField.getText().isEmpty()) fontRendererObj.drawStringWithShadow("Поиск...", x + SIDEBAR + 15, y + 15, 0xFF6B6B76);
-
-            int rightX = x + width - 25;
-            drawRoundedRect(rightX, y + 40, 15, 15, 0xFF8A2BE2); 
-            drawRoundedRect(rightX, y + 60, 15, 15, 0xFFFF0000); 
-            drawRoundedRect(rightX, y + 80, 15, 15, 0xFF00FF00); 
-
-            GL11.glEnable(GL11.GL_SCISSOR_TEST);
-            int scale = new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor();
-            GL11.glScissor((x + SIDEBAR + 10) * scale, (mc.displayHeight - (y + height - 10) * scale), (width - SIDEBAR - 30) * scale, (height - 50) * scale);
+            // Панель цветов (справа)
+            int rightX = x + width - 22;
+            drawRoundedRect(rightX, y + 35, 12, 12, 0xFF8A2BE2); 
+            drawRoundedRect(rightX, y + 52, 12, 12, 0xFFFF0000); 
+            drawRoundedRect(rightX, y + 69, 12, 12, 0xFF00FF00); 
 
             List<Module> list = getModules(category);
-            int startX = x + SIDEBAR + 15, startY = y + 40, col = 0, row = 0;
+            int startX = x + SIDEBAR + 8, startY = y + 8, col = 0, row = 0;
             
             for (Module mod : list) {
-                if (!searchField.getText().isEmpty() && !mod.name.toLowerCase().contains(searchField.getText().toLowerCase())) continue;
+                int mx = startX + (col * 112), my = startY + (row * 34) + scrollOffset;
                 
-                int mx = startX + (col * 145), my = startY + (row * 40) + scrollOffset;
-                if (my > y + 30 && my < y + height) {
-                    boolean hover = mouseX >= mx && mouseX <= mx + 135 && mouseY >= my && mouseY <= my + 32;
+                if (my > y + 5 && my < y + height - 25) {
+                    boolean hover = mouseX >= mx && mouseX <= mx + 105 && mouseY >= my && mouseY <= my + 26;
                     
-                    if (mod.enabled) drawRoundedRect(mx, my, 135, 32, THEME_COLOR_2);
-                    else drawRoundedRect(mx, my, 135, 32, hover ? MOD_HOVER : MOD_BG);
+                    if (mod.enabled) drawRoundedRect(mx, my, 105, 26, THEME_DARK);
+                    else drawRoundedRect(mx, my, 105, 26, hover ? MOD_HOVER : MOD_BG);
                     
-                    fontRendererObj.drawStringWithShadow(mod.name, mx + 8, my + 6, 0xFFFFFFFF);
+                    fontRendererObj.drawStringWithShadow(mod.name, mx + 6, my + 9, 0xFFFFFFFF);
                     
-                    int toggleX = mx + 135 - 25;
-                    drawRoundedRect(toggleX, my + 11, 18, 10, mod.enabled ? THEME_COLOR_1 : 0xFF3F3F46);
-                    drawCircle(toggleX + (mod.enabled ? 13 : 5), my + 16, 3.5f, 0xFFFFFFFF);
+                    int toggleX = mx + 85;
+                    drawRoundedRect(toggleX, my + 9, 14, 8, mod.enabled ? THEME_MAIN : 0xFF3F3F46);
+                    drawCircle(toggleX + (mod.enabled ? 9 : 3), my + 13, 2.5f, 0xFFFFFFFF);
                 }
                 col++; 
                 if (col >= 2) { col = 0; row++; }
             }
-            
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
             super.drawScreen(mouseX, mouseY, partialTicks);
         }
 
         private void drawCat(String name, int cx, int cy, int mx, int my) {
             boolean active = category.equals(name);
-            boolean hover = mx >= cx && mx <= cx + SIDEBAR - 20 && my >= cy && my <= cy + 20;
+            boolean hover = mx >= cx && mx <= cx + SIDEBAR - 15 && my >= cy && my <= cy + 18;
             
-            if (active) drawRoundedRect(cx, cy, SIDEBAR - 20, 20, THEME_COLOR_1);
-            else if (hover) drawRoundedRect(cx, cy, SIDEBAR - 20, 20, MOD_BG);
+            if (active) drawRoundedRect(cx, cy, SIDEBAR - 15, 18, THEME_MAIN);
+            else if (hover) drawRoundedRect(cx, cy, SIDEBAR - 15, 18, MOD_BG);
             
-            fontRendererObj.drawString(name, cx + 10, cy + 6, active ? 0xFFFFFFFF : 0xFFA1A1AA);
+            fontRendererObj.drawString(name, cx + 6, cy + 5, active ? 0xFFFFFFFF : 0xFFA1A1AA);
         }
 
         @Override
@@ -262,40 +239,39 @@ public class TusiClient {
             super.handleMouseInput();
             int i = Mouse.getEventDWheel();
             if (i != 0) {
-                if (i > 0) scrollOffset += 20; else scrollOffset -= 20;
+                if (i > 0) scrollOffset += 15; else scrollOffset -= 15;
                 if (scrollOffset > 0) scrollOffset = 0;
+                if (scrollOffset < -((getModules(category).size() / 2) * 34) + 130) {
+                    scrollOffset = -((getModules(category).size() / 2) * 34) + 130;
+                }
             }
         }
 
         @Override
         protected void keyTyped(char typedChar, int keyCode) {
-            if (searchField.textboxKeyTyped(typedChar, keyCode)) return;
             if (keyCode == Keyboard.KEY_ESCAPE) mc.displayGuiScreen(null);
         }
 
         @Override
         protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-            searchField.mouseClicked(mouseX, mouseY, mouseButton);
+            if (mouseY >= y + 40 && mouseY <= y + 58 && mouseX >= x + 8 && mouseX <= x + SIDEBAR) category = "Combat";
+            if (mouseY >= y + 65 && mouseY <= y + 83 && mouseX >= x + 8 && mouseX <= x + SIDEBAR) { category = "Render"; scrollOffset = 0; }
 
-            if (mouseY >= y + 45 && mouseY <= y + 65 && mouseX >= x + 10 && mouseX <= x + SIDEBAR) category = "Combat";
-            if (mouseY >= y + 70 && mouseY <= y + 90 && mouseX >= x + 10 && mouseX <= x + SIDEBAR) category = "Render";
-
-            int rightX = x + width - 25;
-            if (mouseX >= rightX && mouseX <= rightX + 15) {
-                if (mouseY >= y + 40 && mouseY <= y + 55) { THEME_COLOR_1 = 0xFF8A2BE2; THEME_COLOR_2 = 0xFF4B0082; }
-                if (mouseY >= y + 60 && mouseY <= y + 75) { THEME_COLOR_1 = 0xFFFF0000; THEME_COLOR_2 = 0xFF8B0000; }
-                if (mouseY >= y + 80 && mouseY <= y + 95) { THEME_COLOR_1 = 0xFF00FF00; THEME_COLOR_2 = 0xFF008000; }
+            int rightX = x + width - 22;
+            if (mouseX >= rightX && mouseX <= rightX + 12) {
+                if (mouseY >= y + 35 && mouseY <= y + 47) { THEME_MAIN = 0xFF8A2BE2; THEME_DARK = 0xFF4B0082; }
+                if (mouseY >= y + 52 && mouseY <= y + 64) { THEME_MAIN = 0xFFFF0000; THEME_DARK = 0xFF8B0000; }
+                if (mouseY >= y + 69 && mouseY <= y + 81) { THEME_MAIN = 0xFF00FF00; THEME_DARK = 0xFF008000; }
             }
             
             List<Module> list = getModules(category);
-            int startX = x + SIDEBAR + 15, startY = y + 40, col = 0, row = 0;
+            int startX = x + SIDEBAR + 8, startY = y + 8, col = 0, row = 0;
             
             for (Module mod : list) {
-                if (!searchField.getText().isEmpty() && !mod.name.toLowerCase().contains(searchField.getText().toLowerCase())) continue;
+                int mx = startX + (col * 112), my = startY + (row * 34) + scrollOffset;
                 
-                int mx = startX + (col * 145), my = startY + (row * 40) + scrollOffset;
-                if (my > y + 30 && my < y + height) {
-                    if (mouseX >= mx && mouseX <= mx + 135 && mouseY >= my && mouseY <= my + 32) { 
+                if (my > y + 5 && my < y + height - 25) {
+                    if (mouseX >= mx && mouseX <= mx + 105 && mouseY >= my && mouseY <= my + 26) { 
                         mod.enabled = !mod.enabled; 
                     }
                 }
@@ -317,7 +293,7 @@ public class TusiClient {
             float a = (float)(color >> 24 & 255) / 255.0F, r = (float)(color >> 16 & 255) / 255.0F, g = (float)(color >> 8 & 255) / 255.0F, b = (float)(color & 255) / 255.0F;
             GL11.glEnable(GL11.GL_BLEND); GL11.glDisable(GL11.GL_TEXTURE_2D); GL11.glColor4f(r, g, b, a);
             
-            int radius = 4;
+            int radius = 3;
             GL11.glBegin(GL11.GL_TRIANGLE_FAN);
             GL11.glVertex2f(x + radius, y + radius);
             for(int i = 0; i <= 90; i += 10) { double angle = Math.toRadians(i); GL11.glVertex2f((float)(x + radius + Math.sin(angle) * radius), (float)(y + radius - Math.cos(angle) * radius)); }
@@ -333,4 +309,4 @@ public class TusiClient {
         @Override
         public boolean doesGuiPauseGame() { return false; }
     }
-    }
+                            }
