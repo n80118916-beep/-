@@ -11,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
@@ -50,9 +49,8 @@ public class TusiClient {
         openGuiKey = new KeyBinding("Меню TusiClient", Keyboard.KEY_RSHIFT, "TusiClient");
         cpw.mods.fml.client.registry.ClientRegistry.registerKeyBinding(openGuiKey);
         
-        friends.add("Tusi"); // Твой ник для защиты друзей
+        friends.add("Tusi");
 
-        // --- COMBAT ---
         modules.add(new Module("Auto Explosion", "Ставит и взрывает ТНТ", "Combat", false));
         modules.add(new Module("Friend Protect", "Не бьет друзей", "Combat", true));
         modules.add(new Module("Auto GApple", "Ест золотое яблоко", "Combat", false));
@@ -65,7 +63,6 @@ public class TusiClient {
         modules.add(new Module("Hitboxes", "Увеличивает хитбоксы", "Combat", false));
         modules.add(new Module("Velocity", "Убирает откидывание", "Combat", false));
         
-        // --- RENDER ---
         modules.add(new Module("Fullbright", "Яркость", "Render", true));
         modules.add(new Module("ESP", "Подсветка игроков", "Render", false));
         modules.add(new Module("Tracers", "Линии до игроков", "Render", false));
@@ -92,7 +89,6 @@ public class TusiClient {
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player != mc.thePlayer) return;
 
-        // Combat Logic
         if (isEnabled("Attack Aura")) {
             EntityLivingBase target = findClosestTarget(4.5);
             if (target != null && !(isEnabled("Friend Protect") && target instanceof EntityPlayer && friends.contains(target.getCommandSenderName()))) {
@@ -141,7 +137,6 @@ public class TusiClient {
             }
         }
 
-        // Render Logic (Tick)
         if (isEnabled("Fullbright")) mc.gameSettings.gammaSetting = 100.0F;
         else if (mc.gameSettings.gammaSetting == 100.0F) mc.gameSettings.gammaSetting = 1.0F;
         
@@ -206,7 +201,10 @@ public class TusiClient {
                 GL11.glRotatef(-RenderManager.instance.playerViewY, 0.0F, 1.0F, 0.0F); GL11.glRotatef(RenderManager.instance.playerViewX, 1.0F, 0.0F, 0.0F);
                 GL11.glScalef(-0.02666667F, -0.02666667F, 0.02666667F); GL11.glDisable(GL11.GL_LIGHTING); GL11.glDepthMask(false);
                 String name = player.getDisplayName(); int width = mc.fontRenderer.getStringWidth(name) / 2;
-                drawRect(-width - 1, -1, width + 1, 8, 0x80000000); mc.fontRenderer.drawStringWithShadow(name, -width, 0, 0xFFFFFF);
+                
+                net.minecraft.client.gui.Gui.drawRect(-width - 1, -1, width + 1, 8, 0x80000000); 
+                mc.fontRenderer.drawStringWithShadow(name, -width, 0, 0xFFFFFF);
+                
                 GL11.glDepthMask(true); GL11.glEnable(GL11.GL_LIGHTING); GL11.glPopMatrix();
             }
         }
@@ -270,14 +268,13 @@ public class TusiClient {
     public static class Module {
         public String name, desc, category; public boolean enabled;
         public Module(String name, String desc, String category, boolean enabled) { this.name = name; this.desc = desc; this.category = category; this.enabled = enabled; }
-    }
-
-    public static class GuiTusiClient extends GuiScreen {
+}
+        public static class GuiTusiClient extends GuiScreen {
         private int x, y;
         private final int width = 520; 
         private final int height = 340;
         private final int SIDEBAR = 130;
-        private String category = "Combat"; // По умолчанию открываем Combat
+        private String category = "Combat";
         
         private final int BG = 0xFF121214, SIDE = 0xFF18181B, MOD = 0xFF27272A, TEXT = 0xFFFFFFFF, DESC = 0xFFA1A1AA;
 
@@ -293,7 +290,6 @@ public class TusiClient {
             drawRect(x + 15, y + 15, x + 45, y + 45, 0xFFB42828);
             fontRendererObj.drawStringWithShadow("TusiClient", x + 55, y + 25, TEXT);
             
-            // Добавляем все категории в меню, чтобы было как на скрине
             drawCat("Combat", x + 15, y + 70, mouseX, mouseY); 
             drawCat("Movement", x + 15, y + 100, mouseX, mouseY); 
             drawCat("Render", x + 15, y + 130, mouseX, mouseY);
@@ -339,7 +335,6 @@ public class TusiClient {
 
         @Override
         protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-            // Обработка кликов по всем вкладкам
             if (mouseY >= y + 70 && mouseY <= y + 92) { category = "Combat"; }
             if (mouseY >= y + 100 && mouseY <= y + 122) { category = "Movement"; }
             if (mouseY >= y + 130 && mouseY <= y + 152) { category = "Render"; }
@@ -373,4 +368,4 @@ public class TusiClient {
         @Override
         public boolean doesGuiPauseGame() { return false; }
     }
-            }
+        }
